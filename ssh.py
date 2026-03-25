@@ -130,14 +130,22 @@ def configure_sshd(port, permit_root, password_auth):
 
     sshd_config.write_text("\n".join(new_lines) + "\n")
 
-    # validate
-    result = run("sshd -t", check=False, capture=True)
-    if result.returncode != 0:
-        err("sshd config validation failed — restoring backup.")
-        import shutil
-        shutil.copy2(backup, sshd_config)
-        print(result.stderr)
-        sys.exit(1)
+    # validate — find sshd binary regardless of PATH
+    sshd_bin = next(
+        (p for p in ["/usr/sbin/sshd", "/sbin/sshd", "/usr/bin/sshd"]
+         if Path(p).exists()),
+        None
+    )
+    if sshd_bin is None:
+        warn("sshd binary not found — skipping config validation.")
+    else:
+        result = run(f"{sshd_bin} -t", check=False, capture=True)
+        if result.returncode != 0:
+            err("sshd config validation failed — restoring backup.")
+            import shutil
+            shutil.copy2(backup, sshd_config)
+            print(result.stderr)
+            sys.exit(1)
 
     ok(f"sshd_config written  (port={port}, root={'yes' if permit_root else 'no'}, "
        f"password={'yes' if password_auth else 'no'})")
